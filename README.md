@@ -1,6 +1,6 @@
-# Fairseq-signals
+# DeepECG-SSL Fine tuning
 
-This is an adaption of the [`Fairseq-signals`](https://github.com/Jwoo5/fairseq-signals) for Heartwise.
+This is an adaption of the [`Fairseq-signals`](https://github.com/Jwoo5/fairseq-signals) for Heartwise for fine tuning DeepECG-SSL
 
 It is highly recommended to create a dedicated conda environment before installing the following libraries
 ```
