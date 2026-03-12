@@ -138,6 +138,7 @@ label_indexes:[0, 5]  #in this case we extract columns 0 and 5 to be our labels
 ```
 
 ## Citation
+```
 @article{NolinLapalme2026,
   author = {Nolin-Lapalme, Alexis and Sowa, Achille and Delfrate, Jacques and Tastet, Olivier and Corbin, Denis and Kulbay, Merve and Ozdemir, Derman and No{\"e}l, Marie-Jeanne and Marois-Blanchet, Fran{\c{c}}ois-Christophe and Harvey, Fran{\c{c}}ois and Sharma, Surbhi and Ansari, Minhaj and Chiu, I Min and D'souza, Valentina and Friedman, Sam F. and Chass{\'e}, Micha{\"e}l and Potter, Brian J. and Afilalo, Jonathan and Elias, Pierre Adil and Jabbour, Gilbert and Bahani, Mourad and Dub{\'e}, Marie-Pierre and Boyle, Patrick M. and Chatterjee, Neal A. and Barrios, Joshua and Tison, Geoffrey H. and Ouyang, David and Maddah, Mahnaz and Khurshid, Shaan and Cadrin-Tourigny, Julia and Tadros, Rafik and Hussin, Julie and Avram, Robert},
   title = {Foundation models for electrocardiogram interpretation: clinical implications},
@@ -148,3 +149,4 @@ label_indexes:[0, 5]  #in this case we extract columns 0 and 5 to be our labels
   URL = {https://doi.org/10.1093/eurheartj/ehaf1119},
   note = {Online ahead of print}
 }
+```
