@@ -11,6 +11,7 @@ import wfdb
 import functools
 import pickle
 import scipy.io
+import scipy.signal
 import numpy as np
 import math
 from tqdm import tqdm
@@ -121,6 +122,13 @@ def get_parser():
         type=float,
         help="scale factor. can be done with normalization (mean, std) = (0, 1/scale), but this is straightforward"
     )
+    parser.add_argument(
+        "--source-sample-rate",
+        default=None,
+        type=int,
+        help="original sample rate of the data. if different from --sample-rate, "
+             "signals are resampled using scipy.signal.resample"
+    )
     parser.add_argument("--workers", metavar="N", default=1, type=int,
                        help="number of parallel workers")
     parser.add_argument("--seed", default=42, type=int, metavar="N", help="random seed")
@@ -199,8 +207,9 @@ def preprocess(args, scaler, leads_to_load, dest_path, pid_fnames):
         if npy_path is None:
             return np.load(fname).squeeze()
         else:
-            #expected format of fname: pid_rowid_rest
-            rowid = int(fname.split('_')[1])
+            #expected format of basename: pid_rowid.npy or pid_rowid_rest
+            basename = os.path.splitext(os.path.basename(fname))[0]
+            rowid = int(basename.split('_')[1])
             X = np.lib.format.open_memmap(npy_path, mode='r')
             return X[rowid]
 
@@ -219,10 +228,16 @@ def preprocess(args, scaler, leads_to_load, dest_path, pid_fnames):
         if scaler is not None:
             record = scaler.transform(record)
         record = args.scale * record.T
+
+        # Resample if source sample rate differs from target
+        if args.source_sample_rate is not None and args.source_sample_rate != args.sample_rate:
+            target_len = int(record.shape[-1] * args.sample_rate / args.source_sample_rate)
+            record = scipy.signal.resample(record, target_len, axis=-1).astype(record.dtype)
+
         if np.isnan(record).any():
             print(f"detected nan value at: {fname}, so skipped")
             continue
-            
+
         length = record.shape[-1]
         #pid = int(pid) if pid.isdigit() else pid
         def savemat(pid, feats, label, matname):
