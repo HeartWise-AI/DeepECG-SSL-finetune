@@ -17,9 +17,10 @@
 
 set -e
 
-# Base paths
-REPO_DIR="/volume/fairseq-signals"
-DATA_DIR="/volume/fairseq-signals/data/ssl-amp-preserved"
+# Base paths (override via environment variables)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="${REPO_DIR:-$(cd "${SCRIPT_DIR}/../../.." && pwd)}"
+DATA_DIR="${DATA_DIR:-${REPO_DIR}/data/ssl-amp-preserved}"
 PREPROCESS_SCRIPT="${REPO_DIR}/fairseq_signals/data/ecg/preprocess/preprocess_parquet.py"
 MANIFEST_SCRIPT="${REPO_DIR}/scripts/preprocess/ecg/create_flat_manifest.py"
 CMSC_CONVERT_SCRIPT="${REPO_DIR}/fairseq_signals/data/ecg/preprocess/convert_to_cmsc_manifest.py"
@@ -47,13 +48,17 @@ MANIFEST_DIR="${DATA_DIR}/manifest"
 # =============================================================================
 # Step 0: Verify scale factors with calibration tool (optional)
 # =============================================================================
-echo "=== Step 0: Verifying scale factors ==="
-python "${CALIBRATE_SCRIPT}" "${MHI_NPY_DIR}" --n-samples 2000 --known-scale ${MHI_SCALE}
-echo ""
-python "${CALIBRATE_SCRIPT}" "${MIMIC_NPY}" --n-samples 2000 --known-scale ${MIMIC_SCALE}
-echo ""
-python "${CALIBRATE_SCRIPT}" "${CODE15_NPY}" --n-samples 2000 --known-scale ${CODE15_SCALE}
-echo ""
+if [[ "${RUN_CALIBRATION:-0}" == "1" ]]; then
+    echo "=== Step 0: Verifying scale factors ==="
+    python "${CALIBRATE_SCRIPT}" "${MHI_NPY_DIR}" --n-samples 2000 --known-scale ${MHI_SCALE}
+    echo ""
+    python "${CALIBRATE_SCRIPT}" "${MIMIC_NPY}" --n-samples 2000 --known-scale ${MIMIC_SCALE}
+    echo ""
+    python "${CALIBRATE_SCRIPT}" "${CODE15_NPY}" --n-samples 2000 --known-scale ${CODE15_SCALE}
+    echo ""
+else
+    echo "=== Step 0: Skipped (set RUN_CALIBRATION=1 to enable) ==="
+fi
 
 # =============================================================================
 # Step 1: Preprocess MHI data (individual NPY files)

@@ -203,24 +203,32 @@ def main(args):
         
 
 def preprocess(args, scaler, leads_to_load, dest_path, pid_fnames):
-    def load_npy(fname, npy_path):
-        if npy_path is None:
+    def load_npy(fname, npy_mmap):
+        if npy_mmap is None:
             return np.load(fname).squeeze()
         else:
-            #expected format of basename: pid_rowid.npy or pid_rowid_rest
+            # Rowid is the last purely-numeric underscore-delimited segment,
+            # because pids may contain underscores
             basename = os.path.splitext(os.path.basename(fname))[0]
-            rowid = int(basename.split('_')[1])
-            X = np.lib.format.open_memmap(npy_path, mode='r')
-            return X[rowid]
+            parts = basename.split('_')
+            rowid_str = next((p for p in reversed(parts) if p.isdigit()), None)
+            if rowid_str is None:
+                raise ValueError(
+                    f"Cannot extract numeric row index from '{basename}' "
+                    f"when loading consolidated NPY '{args.npy_path}'"
+                )
+            return npy_mmap[int(rowid_str)]
 
     pid, (fnames, labels) = pid_fnames
     fnames = fnames.split(',')
+    # Open memmap once per patient, reuse across all their ECGs
+    npy_mmap = np.lib.format.open_memmap(args.npy_path, mode='r') if args.npy_path else None
         
     for label, fname in zip(labels, fnames):
         basename = os.path.basename(fname)
         dest_folder = get_folder(dest_path, basename, args.bin_size, args.folder_name_length)
         try: 
-            record = load_npy(fname, args.npy_path) #np.load(fname).squeeze()
+            record = load_npy(fname, npy_mmap)
         except Exception as e:
             print(f"unable to load {fname}, so skipped")
             continue

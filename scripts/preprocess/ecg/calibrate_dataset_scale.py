@@ -41,6 +41,8 @@ def _load_calibration_module():
     )
     module_path = os.path.normpath(module_path)
     spec = importlib.util.spec_from_file_location("calibration", module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load calibration module from: {module_path}")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
