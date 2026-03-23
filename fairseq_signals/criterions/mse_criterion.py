@@ -34,10 +34,9 @@ class MSECriterion(BaseCriterion):
         logits = model.get_logits(net_output)
         target = model.get_targets(sample, net_output)
 
-        losses = []
-
         reduction = "none" if not reduce else "sum"
 
+        target = target.to(logits.dtype)
         loss = F.mse_loss(
             logits, target, reduction=reduction
         )
@@ -46,7 +45,6 @@ class MSECriterion(BaseCriterion):
             sample_size = sample['sample_size']
         else:
             sample_size = target.numel()
-        losses.append(loss.detach().clone())
 
         logging_output = {
             "loss": loss.item() if reduce else loss.detach(),

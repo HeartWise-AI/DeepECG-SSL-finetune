@@ -128,6 +128,69 @@ print(y)
 ```
 
 
+## Signal Normalization
+
+ECG signals come in raw ADC (analog-to-digital converter) units that vary across devices and datasets. Before training, signals must be normalized so the model can learn consistently across sources. Two approaches have been used:
+
+### DeepECG-SSL v1: FFT Spectral Power Normalization (Original)
+
+The original approach, implemented in the [DeepECG Docker](https://github.com/HeartWise-AI/DeepECG_Docker) preprocessing pipeline, normalizes signals by matching their average spectral power to a reference dataset (PTB-XL). The pipeline works as follows:
+
+1. **Extract** raw ECG from source files (XML/NPY)
+2. **Scale via FFT**: Compute the mean FFT magnitude spectrum across all signals (lead 0), then uniformly scale every signal in the frequency domain so the dataset's average spectral power matches the PTB-XL reference (`PTBXL_POWER_RATIO = 3.003154`)
+3. **Clean leads**: Remove 60 Hz power line noise and flatten spectral peaks via FFT interpolation
+4. **Save** preprocessed signals
+
+The spectral scaling step works by:
+```
+factor = PTBXL_POWER_RATIO / dataset_avg_spectral_power
+scaled_signal = IFFT( FFT(signal) * factor )
+```
+
+This is a dataset-level normalization (one factor for the entire dataset, not per-sample), but it operates in the frequency domain and targets spectral power rather than physical units.
+
+**Limitation:** While this preserves some inter-patient amplitude variation (unlike per-sample z-score), the FFT-domain scaling does not convert signals to standard physical units (millivolts). The reference power is empirically derived from PTB-XL rather than from documented ADC gains, making it harder to reason about the physical meaning of signal amplitudes. Additionally, the per-lead z-score normalization available at training time (`--normalize`, `--mean_path`, `--std_path` flags in the dataset config) can further destroy amplitude information if enabled.
+
+### DeepECG-SSL v2: Amplitude-Preserved Normalization (Current)
+
+The new approach replaces spectral power matching with a simple fixed scale factor per dataset source that converts raw ADC units directly to millivolts:
+
+```
+signal_mV = raw_signal * scale_factor
+```
+
+Each dataset/device has one scale factor determined by its documented ADC gain:
+
+| Source | Scale Factor | Origin |
+|--------|-------------|--------|
+| MHI (MUSE GE) | 0.00488 | Documented ADC gain (4.88 uV/unit) |
+| MIMIC | 0.001 | Dataset documentation |
+| CODE-15 | 0.4694 | Estimated via calibration tool |
+
+The scale factor is applied during preprocessing via `preprocess_parquet.py`:
+
+```shell script
+$ python fairseq_signals/data/ecg/preprocess/preprocess_parquet.py \
+    [source_dir] \
+    --x-path [labels_file] \
+    --dest [output_dir] \
+    --scale 0.00488 \
+    --sample-rate 250 --sec 5 \
+    ...
+```
+
+For datasets with unknown ADC gain, estimate the scale factor using the calibration tool:
+
+```shell script
+$ python scripts/preprocess/ecg/calibrate_dataset_scale.py /path/to/data.npy --n-samples 2000
+```
+
+This computes the median lead-I power across a random sample and derives the scale factor that matches a millivolt reference (0.01707 mV^2, derived from MHI and MIMIC).
+
+**Advantage:** All patients retain their natural amplitude variation after scaling, and signals are in standard physical units (mV) across all sources. This enables the model to learn voltage-dependent diagnostic criteria for conditions like LVH, LAE/RAE, RVH, and BAE, where absolute voltage measurements are part of the clinical criteria.
+
+The full amplitude-preserved preprocessing and training pipeline is available in `scripts/preprocess/ecg/run_ssl_amp_preserved.sh`.
+
 ## Example of manifest files
 `train.tsv` for a classification task with `num_labels=2`. Note that the `#` used in the file are only for description. `.tsv` does not support comments. 
 ```
