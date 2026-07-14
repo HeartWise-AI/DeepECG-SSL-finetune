@@ -188,7 +188,21 @@ def import_models(models_dir, namespace):
             and (file.endswith(".py") or os.path.isdir(path))
         ):
             model_name = file[: file.find(".py")] if file.endswith(".py") else file
-            importlib.import_module(namespace + "." + model_name)
+            # m3ae / medvill are optional multimodal (ECG+text) models that depend on
+            # `transformers`; skip them if that dep is incompatible so core ECG models
+            # (e.g. ecg_transformer_classifier) still load. Any other import error is fatal.
+            _OPTIONAL = {"m3ae", "medvill"}
+            try:
+                importlib.import_module(namespace + "." + model_name)
+            except ImportError:
+                if model_name in _OPTIONAL:
+                    import warnings
+                    warnings.warn(
+                        f"skipping optional model '{model_name}' (incompatible/missing "
+                        f"transformers dependency)"
+                    )
+                    continue
+                raise
 
             # extra `model_parser` for sphinx
             if model_name in MODEL_REGISTRY:
