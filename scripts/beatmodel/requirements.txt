@@ -1,0 +1,8 @@
+# Extra dependencies for the beat-level explainability scripts.
+# Not added to the library's install_requires: these are analysis scripts, and neurokit2 is
+# needed only by build_beats_nk.py.
+neurokit2>=0.2.13
+scipy>=1.10
+pandas>=2.0
+pyarrow>=12.0
+matplotlib>=3.7
