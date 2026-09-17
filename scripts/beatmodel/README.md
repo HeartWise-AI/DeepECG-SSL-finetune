@@ -21,6 +21,11 @@ Run in order. Each step writes under `data/acs_final/`.
 | 7 | `sample_conditional.py` | Samples per territory, audits them with the frozen classifier, checks memorisation and amplitude, and sweeps classifier-free guidance. |
 | 8 | `plot_conditional.py` | Sampled ACO-positive panels per territory, and sampling vs morphing vs real ischemia. |
 
+## Start here
+
+`HANDOVER.md` — what exists, what is settled and should not be re-derived, the traps that fail
+silently, and what is still open. Read it before running anything.
+
 ## How to use these models
 
 `USAGE.md` in this directory: loading each checkpoint, generating an occluded beat for a
