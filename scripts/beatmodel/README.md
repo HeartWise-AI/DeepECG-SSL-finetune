@@ -21,6 +21,13 @@ Run in order. Each step writes under `data/acs_final/`.
 | 7 | `sample_conditional.py` | Samples per territory, audits them with the frozen classifier, checks memorisation and amplitude, and sweeps classifier-free guidance. |
 | 8 | `plot_conditional.py` | Sampled ACO-positive panels per territory, and sampling vs morphing vs real ischemia. |
 
+## How to use these models
+
+`USAGE.md` in this directory: loading each checkpoint, generating an occluded beat for a
+territory, reconstructing or embedding a real beat, scoring, the sanity checks to run after
+moving the weights, and a step-by-step guide to retraining all three on a new cohort. Every
+snippet there was executed against the shipped checkpoints before being written down.
+
 ## Result in one line
 
 Conditional sampling reproduces real ischemic morphology (cosine +0.99 / +0.99 / +0.94 for
