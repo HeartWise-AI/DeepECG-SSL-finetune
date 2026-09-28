@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared-backbone 3-head DeepECG-ACS (faithful to prior deployment).
+"""Shared-backbone 3-head DeepACO signal model (faithful to prior deployment).
 
 One WCRv2 backbone -> 3 heads:
   - acs    : P(Acute_Obstruction)   trained on full cohort

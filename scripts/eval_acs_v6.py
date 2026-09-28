@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Score the trained DeepECG-ACS v6 heads on the held-out test set.
+"""Score the trained DeepACO (signal model) v6 heads on the held-out test set.
 AUROC/AUPRC with 1000-iter bootstrap 95% CIs. Raw arrays -> x0.00488 mV."""
 import numpy as np, torch
 from sklearn.metrics import roc_auc_score, average_precision_score

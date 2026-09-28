@@ -1,4 +1,4 @@
-# Beat-level explainability for DeepECG-ACS
+# Beat-level explainability for DeepACO (signal model)
 
 Implements the beat-model protocol of Obermeyer/Schubert et al., *Nature* 2026
 (`s41586-026-10674-6`), and extends it with a class-conditional generator.

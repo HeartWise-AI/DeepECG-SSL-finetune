@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the DeepECG-ACS v6 cohort: derive labels + a patient-consistent split.
+"""Build the DeepACO v6 cohort: derive labels + a patient-consistent split.
 
 Split policy (decided 2026-06-25):
   - Inherit the canonical MHI `Split` (from ECG_ad20241231_gt_labels_v1.6.parquet,

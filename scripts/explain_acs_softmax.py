@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Explainability for the softmax-territory DeepECG-ACS model — generator-free.
+"""Explainability for the softmax-territory DeepACO signal model — generator-free.
 
 Follows the protocol in Obermeyer/Schubert et al., Nature 2026 (s41586-026-10674-6,
 in DeepECG-PNG/manuscript/) as adapted in DeepECG-PNG/scripts/explainability/HANDOVER.md,

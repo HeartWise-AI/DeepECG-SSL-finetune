@@ -191,6 +191,16 @@ This computes the median lead-I power across a random sample and derives the sca
 
 The full amplitude-preserved preprocessing and training pipeline is available in `scripts/preprocess/ecg/run_ssl_amp_preserved.sh`.
 
+## DeepACO signal model (acute coronary occlusion)
+
+The signal model of [DeepACO](https://github.com/HeartWise-AI/DeepACO) is fine-tuned from the
+amplitude-preserved WCRv2 backbone with this repository. Its inference and fine-tuning package is
+in `hf_deepaco/`, the cohort and training scripts are `scripts/preprocess/build_acs_v6_*.py`,
+`scripts/train_acs_3head.py` and `scripts/train_acs_3head_softmax.py`, and the beat-level
+explainability stack is in `scripts/beatmodel/` (start with its `HANDOVER.md`). The model was
+previously called DeepECG-ACS; that name survives only in the Hugging Face repository id
+`heartwise/deepecg-acs-3head` and the wandb project name.
+
 ## Example of manifest files
 `train.tsv` for a classification task with `num_labels=2`. Note that the `#` used in the file are only for description. `.tsv` does not support comments. 
 ```

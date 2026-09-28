@@ -1,4 +1,4 @@
-# Handover — DeepECG-ACS culprit territory and beat models
+# Handover — DeepACO (signal model) culprit territory and beat models
 
 Written for whoever picks this up next. Read this before running anything: several questions here
 are settled and re-deriving them wastes a day, and several traps are invisible until they have
@@ -21,7 +21,7 @@ cohort (no LBBB, paced, prior CABG, graft-only PCI or non-coronary).
 | Results and figures | `data/acs_final/explainability/` | Source data behind every reported number |
 
 Code is on `main` in this repo (PR #3, commit `04e944b`; docs in PR #4). The image-model suite is
-on `main` in DeepECG-PNG (PR #189, commit `85345bf`). The model card is the DeepECG-ACS page in
+on `main` in DeepECG-PNG (PR #189, commit `85345bf`). The model card is the DeepACO signal-model page (still titled DeepECG-ACS-WCR) in
 Notion, with sections 2.2 candidate, Explainability, Beat-level generative explainability, and
 Shipped.
 
