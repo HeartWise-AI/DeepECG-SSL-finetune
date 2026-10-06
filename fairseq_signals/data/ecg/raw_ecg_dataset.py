@@ -303,6 +303,10 @@ class RawECGDataset(BaseDataset):
         if self.label:
             out["label"] = torch.stack([s["label"] for s in samples])
 
+        if "aux" in samples[0]:
+            # auxiliary scalars travel with net_input so model(**net_input) receives them
+            input["aux"] = torch.stack([s["aux"] for s in samples])
+
         if originals:
             out["original"] = collated_originals
 
@@ -580,6 +584,9 @@ class NpECGDataset(RawECGDataset):
         self.fnames = []
         sizes = []
         self.skipped_indices = set()
+        # optional per-ECG auxiliary scalars (e.g. age, sex); NaN = missing
+        self.aux_file = None
+        self.auxdata = None
 
         with open(manifest_path, "r") as f:
             for i, line in enumerate(f):
@@ -592,6 +599,8 @@ class NpECGDataset(RawECGDataset):
                     self.ecg_shape = eval(value)
                 elif key == "y_path":
                     self.label_file = value
+                elif key == "aux_path":
+                    self.aux_file = value
                 elif key == "label_indexes":
                     self.label_indexes = eval(value)
                 elif key == "normalization":
@@ -611,9 +620,14 @@ class NpECGDataset(RawECGDataset):
         self.sizes = [data.shape[1]] * self.len 
 
         if self.label:
-            use_memmap, data = npy_load(data=None, filename=self.label_file)    
+            use_memmap, data = npy_load(data=None, filename=self.label_file)
             self.ydata = None if use_memmap else data
-        
+
+        if self.aux_file:
+            self.auxdata = np.asarray(np.load(self.aux_file), dtype=np.float32)
+            assert self.auxdata.ndim == 2 and len(self.auxdata) == self.len, (
+                f"aux_path must have shape (N, aux_dim) with N={self.len}, got {self.auxdata.shape}"
+            )
 
         self.set_bucket_info(num_buckets)
 
@@ -633,7 +647,10 @@ class NpECGDataset(RawECGDataset):
         if self.label:
             _, ydata = npy_load(data=self.ydata, filename=self.label_file)
             res["label"] = torch.from_numpy(ydata[index, self.label_indexes])
-        
+
+        if self.auxdata is not None:
+            res["aux"] = torch.from_numpy(self.auxdata[index])
+
         return res
 
     def __len__(self):
