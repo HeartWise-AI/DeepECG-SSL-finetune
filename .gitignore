@@ -75,3 +75,5 @@ wandb/
 /fairseq_signals/version.py
 
 /metrics
+# local datasets / runs (container NVMe, never commit)
+data/

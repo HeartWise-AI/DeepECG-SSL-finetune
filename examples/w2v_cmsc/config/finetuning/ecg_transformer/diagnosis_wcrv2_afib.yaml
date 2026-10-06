@@ -1,0 +1,83 @@
+# Model 2: WCR v2 (amp-preserved) fine-tuned for incident atrial fibrillation (2 y and 5 y heads;
+# 5 y is the primary endpoint, as in the EHJ paper), MHI ECGs without prevalent AF, age + sex inputs.
+# Data: scripts/preprocess/ecg/build_wcrv2_multitask_dataset.py ... (see docs plan, AF section)
+
+common:
+  fp16: true
+  log_format: json
+  log_interval: 10
+  all_gather_list_size: 2048000
+  wandb_project: wcrv2-afib
+  seed: 1
+
+checkpoint:
+  save_dir: ???
+  save_interval: 1
+  keep_last_epochs: 2
+  save_interval_updates: 0
+  no_epoch_checkpoints: false
+  patience: 8
+  best_checkpoint_metric: auroc_incident_af_5y
+  maximize_best_checkpoint_metric: true
+
+task:
+  _name: ecg_classification
+  data: ???
+  npy_dataset: true
+  normalize: false
+  enable_padding: true
+  enable_padding_leads: false
+  leads_to_load: null
+
+dataset:
+  num_workers: 8
+  max_tokens: null
+  batch_size: 128
+  valid_subset: "val"
+  train_subset: "train"
+
+distributed_training:
+  distributed_world_size: 1
+
+criterion:
+  _name: masked_bce
+  report_auc: true
+  log_per_label: true
+  sample_size_mode: positives
+  label_names:
+    - incident_af_2y
+    - incident_af_5y
+
+optimization:
+  max_epoch: 30
+  max_update: 400000
+  clip_norm: 1.0
+  lr: [1.0e-5]
+
+optimizer:
+  _name: adam
+  adam_betas: (0.9, 0.98)
+  adam_eps: 1e-08
+
+lr_scheduler:
+  _name: fixed
+  warmup_updates: 0
+
+model:
+  _name: ecg_transformer_aux_classifier
+  model_path: /media/data1/models/DeepECG-SSL/wcr-v2/deepecg-ssl-v2-wcr-amp-preserved-encoder.pt
+  num_labels: 2
+  no_pretrained_weights: false
+
+  aux_dim: 2
+  aux_hidden_dim: 64
+  aux_dropout: 0.1
+  aux_missing_indicator: true
+
+  dropout: 0.0
+  attention_dropout: 0.0
+  activation_dropout: 0.1
+
+  feature_grad_mult: 0.0
+  freeze_finetune_updates: 0
+  in_d: 12
