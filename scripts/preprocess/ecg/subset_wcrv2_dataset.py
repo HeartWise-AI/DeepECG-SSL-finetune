@@ -33,6 +33,19 @@ def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
+def lock_output_dir(out):
+    """Hold an exclusive lock on the output directory for the life of the process, so two builds can never
+    interleave writes into the same arrays and manifests. Fails fast if another build holds it."""
+    import fcntl
+    out.mkdir(parents=True, exist_ok=True)
+    fh = open(out / ".build.lock", "w")
+    try:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        raise SystemExit(f"another build is writing to {out} (lock {out / '.build.lock'}); refusing to start")
+    return fh  # keep a reference: the lock is released when the process exits
+
+
 def write_manifest(out_data, out_man, s, n_labels):
     with open(out_man / f"{s}.tsv", "w") as f:
         f.write(f"x_path:{out_data / f'{s}_x.npy'}\n")
@@ -56,6 +69,7 @@ def main():
     args = ap.parse_args()
 
     src, out = Path(args.src).resolve(), Path(args.out).resolve()
+    _lock = lock_output_dir(out)  # noqa: F841 (held until exit)
     out_data, out_man = out / "data", out / "manifests"
     out_data.mkdir(parents=True, exist_ok=True)
     out_man.mkdir(parents=True, exist_ok=True)

@@ -19,11 +19,75 @@ import torch.nn.functional as F
 from fairseq_signals import metrics
 from fairseq_signals.criterions import BaseCriterion, register_criterion
 from fairseq_signals.dataclass import ChoiceEnum, Dataclass
-from fairseq_signals.logging.meters import safe_round
+from fairseq_signals.logging.meters import Meter, safe_round
 from fairseq_signals.tasks import Task
 from fairseq_signals.utils import utils
 
 SAMPLE_SIZE_CHOICES = ChoiceEnum(["positives", "valid", "signals"])
+
+
+class MaskedAUCMeter(Meter):
+    """Accumulates (y_true, y_score) over every validation batch and reports the AUROC or AUPRC of
+    the whole set. NaN targets are ignored. With 2-D inputs the value is the macro average over the
+    columns that contain both classes; with 1-D inputs it is the metric of that single column.
+
+    fairseq-signals reduces metrics once per validation batch, so a scalar logged per batch would be
+    averaged across batches; accumulating here makes ``auroc`` (and ``best_checkpoint_metric``)
+    the full-set value.
+    """
+
+    def __init__(self, metric: str = "auroc", round: Optional[int] = 4):
+        assert metric in ("auroc", "auprc")
+        self.metric = metric
+        self.round = round
+        self.reset()
+
+    def reset(self):
+        self.targets = []
+        self.scores = []
+
+    def update(self, y_true, y_score):
+        self.targets.append(np.asarray(y_true, dtype=np.float32))
+        self.scores.append(np.asarray(y_score, dtype=np.float32))
+
+    def state_dict(self):
+        return {"metric": self.metric, "round": self.round, "targets": self.targets, "scores": self.scores}
+
+    def load_state_dict(self, state_dict):
+        self.metric = state_dict["metric"]
+        self.round = state_dict.get("round", None)
+        self.targets = state_dict["targets"]
+        self.scores = state_dict["scores"]
+
+    @staticmethod
+    def _score(metric, yt, ys):
+        from sklearn.metrics import average_precision_score, roc_auc_score
+
+        m = ~np.isnan(yt)
+        yt, ys = yt[m], ys[m]
+        if len(yt) == 0 or yt.min() == yt.max():
+            return None
+        return float(roc_auc_score(yt, ys) if metric == "auroc" else average_precision_score(yt, ys))
+
+    @property
+    def value(self):
+        if not self.targets:
+            return float("nan")
+        y_true = np.concatenate(self.targets)
+        y_score = np.concatenate(self.scores)
+        if y_true.ndim == 1:
+            v = self._score(self.metric, y_true, y_score)
+            return float("nan") if v is None else v
+        vals = [self._score(self.metric, y_true[:, j], y_score[:, j]) for j in range(y_true.shape[1])]
+        vals = [v for v in vals if v is not None]
+        return float(np.mean(vals)) if vals else float("nan")
+
+    @property
+    def smoothed_value(self) -> float:
+        val = self.value
+        if self.round is not None:
+            val = safe_round(val, self.round)
+        return val
 
 
 @dataclass
@@ -133,24 +197,6 @@ class MaskedBinaryCrossEntropyWithLogitsCriterion(BaseCriterion):
 
         return loss, sample_size, logging_output
 
-    @staticmethod
-    def _per_label_auc(y_true, y_score):
-        """Return (aurocs, auprcs) lists with None where a label is not evaluable."""
-        from sklearn.metrics import average_precision_score, roc_auc_score
-
-        aurocs, auprcs = [], []
-        for j in range(y_true.shape[1]):
-            m = ~np.isnan(y_true[:, j])
-            yt = y_true[m, j]
-            if m.sum() == 0 or yt.min() == yt.max():
-                aurocs.append(None)
-                auprcs.append(None)
-                continue
-            ys = y_score[m, j]
-            aurocs.append(float(roc_auc_score(yt, ys)))
-            auprcs.append(float(average_precision_score(yt, ys)))
-        return aurocs, auprcs
-
     @classmethod
     def reduce_metrics(cls, logging_outputs) -> None:
         loss_sum = utils.item(sum(log.get("loss", 0) for log in logging_outputs))
@@ -189,25 +235,19 @@ class MaskedBinaryCrossEntropyWithLogitsCriterion(BaseCriterion):
         if any("_y_true" in log for log in logging_outputs):
             y_true = np.concatenate([log["_y_true"] for log in logging_outputs if "_y_true" in log])
             y_score = np.concatenate([log["_y_score"] for log in logging_outputs if "_y_score" in log])
-            aurocs, auprcs = cls._per_label_auc(y_true, y_score)
-            ok_roc = [a for a in aurocs if a is not None]
-            ok_prc = [a for a in auprcs if a is not None]
-            # 'auroc' is the recommended checkpoint.best_checkpoint_metric (maximize)
-            metrics.log_scalar("auroc", float(np.mean(ok_roc)) if ok_roc else 0.0, round=4)
-            metrics.log_scalar("auprc", float(np.mean(ok_prc)) if ok_prc else 0.0, round=4)
-            metrics.log_scalar("n_labels_evaluable", len(ok_roc))
+            # accumulated over the whole validation set (see MaskedAUCMeter); 'auroc' is the recommended
+            # checkpoint.best_checkpoint_metric (maximize)
+            metrics.log_custom(lambda: MaskedAUCMeter("auroc"), "auroc", y_true, y_score)
+            metrics.log_custom(lambda: MaskedAUCMeter("auprc"), "auprc", y_true, y_score)
             names = None
             for log in logging_outputs:
                 if "_label_names" in log:
                     names = log["_label_names"]
                     break
-            # reduce_metrics is a classmethod without access to cfg, so per-label AUROC is always logged
-            for j, a in enumerate(aurocs):
-                if a is None:
-                    continue
+            for j in range(y_true.shape[1]):
                 key = names[j] if names is not None and j < len(names) else f"label{j}"
                 key = key.replace(" ", "_").replace("/", "_")
-                metrics.log_scalar(f"auroc_{key}", a, round=4)
+                metrics.log_custom(lambda: MaskedAUCMeter("auroc"), f"auroc_{key}", y_true[:, j], y_score[:, j])
 
     @staticmethod
     def logging_outputs_can_be_summed() -> bool:

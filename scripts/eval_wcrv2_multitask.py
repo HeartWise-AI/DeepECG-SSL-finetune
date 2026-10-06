@@ -35,24 +35,49 @@ def sigmoid(x):
 
 
 def load_memmap(path):
+    # the header is a pickle written by fairseq_signals.utils.store for our own inference runs;
+    # only point this at result directories you produced
     with open(str(path).replace(".npy", "_header.pkl"), "rb") as f:
         h = pickle.load(f)
     return np.asarray(np.memmap(path, dtype=h["dtype"], mode="r", shape=tuple(h["shape"])), dtype=np.float32)
 
 
-def run_inference(py, ckpt, manifest_dir, subset, results, num_labels, device, batch_size=256):
+def _cache_key(ckpt, manifest_dir, subset, num_labels):
+    ck = Path(ckpt)
+    man = Path(manifest_dir) / f"{subset}.tsv"
+    return {"ckpt": str(ck.resolve()), "ckpt_mtime": ck.stat().st_mtime, "ckpt_size": ck.stat().st_size,
+            "manifest": str(man.resolve()), "manifest_mtime": man.stat().st_mtime, "num_labels": int(num_labels)}
+
+
+def run_inference(py, ckpt, manifest_dir, subset, results, num_labels, device, batch_size=256,
+                  expected_rows=None, force=False):
+    """Run fairseq-hydra-inference unless a cached output for the same checkpoint, manifest and size exists."""
     results.mkdir(parents=True, exist_ok=True)
     out = results / f"outputs_{subset}.npy"
-    if out.exists():
-        return out
+    meta = results / f"outputs_{subset}.cache.json"
+    key = _cache_key(ckpt, manifest_dir, subset, num_labels)
+    if out.exists() and not force:
+        try:
+            cached = json.load(open(meta))
+            rows_ok = expected_rows is None or load_memmap(out).shape[0] == expected_rows
+            if cached == key and rows_ok:
+                return out
+            print(f"[cache] {out} is stale or incomplete; recomputing", flush=True)
+        except (OSError, ValueError, KeyError):
+            print(f"[cache] {out} has no valid cache record; recomputing", flush=True)
+        for f in (out, Path(str(out).replace(".npy", "_header.pkl")), meta):
+            if f.exists():
+                f.unlink()
     env = dict(os.environ, PYTHONPATH=str(REPO), CUDA_VISIBLE_DEVICES=str(device), WANDB_MODE="disabled",
                HYDRA_FULL_ERROR="1")
+    # argument list, no shell: values are passed verbatim to the interpreter
     cmd = [py, "-m", "fairseq_cli.hydra_inference", "--config-dir", str(CFG_DIR), "--config-name", "eval",
            f"task.data={manifest_dir}", f"common_eval.path={ckpt}", f"common_eval.results_path={results}",
            "task.npy_dataset=true", f"model.num_labels={num_labels}", f"dataset.valid_subset={subset}",
            f"dataset.batch_size={batch_size}", "dataset.num_workers=6", "common.wandb_project=null"]
     print("$", " ".join(cmd), flush=True)
     subprocess.run(cmd, env=env, check=True)
+    json.dump(key, open(meta, "w"), indent=2)
     return out
 
 
@@ -101,7 +126,9 @@ BASELINES = {
         "num_labels": 7,
         # v6 output index -> our head name
         "map": {0: "mr_mod_plus", 1: "as_mod_plus", 2: "ar_mod_plus", 3: "tr_mod_plus", 4: "lvef_lte_45", 5: "rv_dysf_mod_plus"},
-        "composite_from_max": "shd_composite",  # v6 composite = max over its 7 heads
+        # v6 has no composite head; its documented SHD composite is the max over all 7 head probabilities
+        # (incl. index 6, LVWT >= 15 mm, which has no counterpart in our label set)
+        "composite_from_max": "shd_composite",
     },
     "wcr_v1_afib_5y": {
         "ckpt": "/media/data1/models/DeepECG-SSL/wcr_afib_5y/wcr_afib_5y.pt",
@@ -140,6 +167,7 @@ def main():
     ap.add_argument("--results", default=None, help="where inference outputs go (default: next to the checkpoint)")
     ap.add_argument("--no-ci", action="store_true")
     ap.add_argument("--baselines", action="store_true", help="also run EchoNext v6 and WCR v1 AF-5y on the same rows")
+    ap.add_argument("--force", action="store_true", help="ignore cached inference outputs")
     ap.add_argument("--py", default=sys.executable)
     args = ap.parse_args()
 
@@ -167,7 +195,8 @@ def main():
                 if not os.path.exists(b["ckpt"]):
                     print(f"[skip] {name}: {b['ckpt']} not found")
                     continue
-                bout = run_inference(args.py, b["ckpt"], data / "manifests", subset, results / name, b["num_labels"], args.device)
+                bout = run_inference(args.py, b["ckpt"], data / "manifests", subset, results / name, b["num_labels"],
+                                     args.device, expected_rows=n, force=args.force)
                 bp = sigmoid(load_memmap(bout)[:n])
                 cols = {lab: bp[:, k] for k, lab in b["map"].items()}
                 if b.get("composite_from_max"):
@@ -184,7 +213,8 @@ def main():
                 else:
                     summary[subset][name] = {}
             continue
-        out = run_inference(args.py, args.ckpt, data / "manifests", subset, results, len(labels), args.device)
+        out = run_inference(args.py, args.ckpt, data / "manifests", subset, results, len(labels), args.device,
+                            expected_rows=len(y), force=args.force)
         logits = load_memmap(out)
         n = min(len(logits), len(y))
         p = sigmoid(logits[:n])
@@ -217,7 +247,8 @@ def main():
                 if not os.path.exists(b["ckpt"]):
                     print(f"[skip] {name}: {b['ckpt']} not found")
                     continue
-                bout = run_inference(args.py, b["ckpt"], data / "manifests", subset, results / name, b["num_labels"], args.device)
+                bout = run_inference(args.py, b["ckpt"], data / "manifests", subset, results / name, b["num_labels"],
+                                     args.device, expected_rows=len(y), force=args.force)
                 bl = load_memmap(bout)[:n]
                 bp = sigmoid(bl)
                 ref_cols = {lab: bp[:, k] for k, lab in b["map"].items()}
