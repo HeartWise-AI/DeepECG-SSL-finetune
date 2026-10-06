@@ -2,7 +2,7 @@
 """Evaluate a WCR v2 multi-task checkpoint on the combined and per-source test sets.
 
 Runs ``fairseq-hydra-inference`` for each requested manifest, then reports
-per-label AUROC / AUPRC (bootstrap 95 % CI), Youden-J and sensitivity-0.90
+per-label AUROC / AUPRC (patient-level bootstrap 95 % CI), Youden-J and sensitivity-0.90
 operating points, restricted to rows where the label is defined (NaN-masked).
 Optionally (--baselines) evaluates the two reference models on the same rows:
 
@@ -81,19 +81,31 @@ def run_inference(py, ckpt, manifest_dir, subset, results, num_labels, device, b
     return out
 
 
-def boot_ci(y, s, fn, B=500, seed=0):
+def boot_ci(y, s, fn, B=500, seed=0, groups=None):
+    """Percentile bootstrap CI. With ``groups`` (e.g. patient ids) whole groups are resampled, so the
+    several ECGs of one patient stay together; implemented as integer sample weights (= replication)."""
     rng = np.random.default_rng(seed)
     vals = []
     n = len(y)
+    if groups is not None:
+        g_codes, g_idx = np.unique(groups, return_inverse=True)
+        n_g = len(g_codes)
     for _ in range(B):
-        i = rng.integers(0, n, n)
-        if y[i].min() == y[i].max():
-            continue
-        vals.append(fn(y[i], s[i]))
+        if groups is None:
+            i = rng.integers(0, n, n)
+            if y[i].min() == y[i].max():
+                continue
+            vals.append(fn(y[i], s[i]))
+        else:
+            w = np.bincount(rng.integers(0, n_g, n_g), minlength=n_g)[g_idx]
+            keep = w > 0
+            if y[keep].min() == y[keep].max():
+                continue
+            vals.append(fn(y[keep], s[keep], sample_weight=w[keep]))
     return (float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5))) if vals else (np.nan, np.nan)
 
 
-def per_label_metrics(y, p, labels, ci=True):
+def per_label_metrics(y, p, labels, ci=True, groups=None):
     rows = []
     for j, lab in enumerate(labels):
         m = ~np.isnan(y[:, j])
@@ -112,10 +124,20 @@ def per_label_metrics(y, p, labels, ci=True):
              "sens90_thr": float(thr[se90[0]]) if len(se90) else np.nan,
              "sens90_spec": float(1 - fpr[se90[0]]) if len(se90) else np.nan}
         if ci:
-            lo, hi = boot_ci(yt, ps, roc_auc_score)
+            lo, hi = boot_ci(yt, ps, roc_auc_score, groups=None if groups is None else groups[m])
             r["auroc_ci"] = f"{lo:.3f}-{hi:.3f}"
+            r["ci_unit"] = "row" if groups is None else "patient"
         rows.append(r)
     return pd.DataFrame(rows)
+
+
+def patient_groups(data, subset, n):
+    """Patient ids aligned with the first n rows of a split, or None when the meta parquet is absent."""
+    mp = data / "data" / f"{subset}_meta.parquet"
+    if not mp.exists():
+        return None
+    pid = pd.read_parquet(mp, columns=["patient_id"])["patient_id"].astype(str).to_numpy()
+    return pid[:n] if len(pid) >= n else None
 
 
 # Reference models evaluated on the same rows (section 6 of the plan). Both consume mV waveforms
@@ -204,7 +226,7 @@ def main():
                 sub_labels = [l for l in labels if l in cols]
                 pm = np.stack([cols[l] for l in sub_labels], axis=1)
                 ym = y[:n][:, [labels.index(l) for l in sub_labels]]
-                df = per_label_metrics(ym, pm, sub_labels, ci=not args.no_ci)
+                df = per_label_metrics(ym, pm, sub_labels, ci=not args.no_ci, groups=patient_groups(data, subset, n))
                 df.to_csv(results / f"metrics_{name}_{subset}.csv", index=False)
                 print(f"\n===== {name} on {subset} (n={n:,}) =====")
                 print(df.round(4).to_string(index=False))
@@ -218,7 +240,7 @@ def main():
         logits = load_memmap(out)
         n = min(len(logits), len(y))
         p = sigmoid(logits[:n])
-        df = per_label_metrics(y[:n], p, labels, ci=not args.no_ci)
+        df = per_label_metrics(y[:n], p, labels, ci=not args.no_ci, groups=patient_groups(data, subset, n))
         df.to_csv(results / f"metrics_{subset}.csv", index=False)
         ok = df["auroc"].dropna() if "auroc" in df.columns else pd.Series(dtype=float)
         print(f"\n===== {subset}  (n={n:,})  macro AUROC {ok.mean():.4f} over {len(ok)} labels =====")

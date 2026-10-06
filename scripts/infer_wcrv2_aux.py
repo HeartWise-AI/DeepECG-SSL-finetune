@@ -28,6 +28,8 @@ import torch
 
 def load(model_dir, device="cuda:0", ckpt_name="checkpoint_best.pt"):
     """Load checkpoint + labels.json. Returns a dict with model, labels, aux normalisation, device."""
+    from omegaconf import open_dict
+
     from fairseq_signals import tasks
     from fairseq_signals.utils import checkpoint_utils
 
@@ -35,9 +37,13 @@ def load(model_dir, device="cuda:0", ckpt_name="checkpoint_best.pt"):
     info = json.load(open(model_dir / "labels.json"))
     state = checkpoint_utils.load_checkpoint_to_cpu(str(model_dir / ckpt_name))
     cfg = state["cfg"]
+    # the fine-tuned checkpoint holds every weight: build the architecture without re-reading the
+    # SSL encoder from its original training path, so the model folder is self-contained
+    with open_dict(cfg["model"]):
+        cfg["model"]["no_pretrained_weights"] = True
     task = tasks.setup_task(cfg["task"])
     model = task.build_model(cfg["model"])
-    model.load_state_dict(state["model"], strict=True)
+    model.load_state_dict(state["model"], strict=True)  # strict: any architecture mismatch fails loudly
     model = model.to(device).eval()
     if cfg["common"].get("fp16", False) and str(device).startswith("cuda"):
         model = model.half()

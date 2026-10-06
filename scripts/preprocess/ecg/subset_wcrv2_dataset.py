@@ -108,6 +108,20 @@ def main():
         else:
             pooled.append((s, s, rows))
 
+    # When --ids-split-col reassigns rows, the source age_z was normalised on a different training
+    # population. Recover years with the source mean/std and re-normalise on the new train split.
+    aux_norm = dict(info["aux_norm"])
+    renorm = None
+    if ids_split is not None:
+        src_mean, src_std = info["aux_norm"]["age_mean"], info["aux_norm"]["age_std"]
+        tr_age = np.concatenate([np.load(src / "data" / f"{s}_aux.npy")[r, 0] for s, sp, r in pooled if sp == "train"]
+                                or [np.array([np.nan])]) * src_std + src_mean
+        if np.isfinite(tr_age).any():
+            aux_norm = {"age_mean": float(np.nanmean(tr_age)), "age_std": float(np.nanstd(tr_age, ddof=1))}
+            renorm = (src_mean, src_std, aux_norm["age_mean"], aux_norm["age_std"])
+            log(f"age re-normalised on the new train split: mean {aux_norm['age_mean']:.2f}, std {aux_norm['age_std']:.2f} "
+                f"(source {src_mean:.2f}, {src_std:.2f})")
+
     # write each output split by concatenating its (source split, rows) chunks
     for out_split in dict.fromkeys(p[1] for p in pooled):
         chunks = [(s, r) for s, sp, r in pooled if sp == out_split]
@@ -129,7 +143,11 @@ def main():
         X.flush(); del X
         y = np.concatenate(ys).astype(np.float32)
         np.save(out_data / f"{out_split}_y.npy", y)
-        np.save(out_data / f"{out_split}_aux.npy", np.concatenate(auxs).astype(np.float32))
+        a = np.concatenate(auxs).astype(np.float32)
+        if renorm is not None:
+            sm_, ss_, nm_, ns_ = renorm
+            a[:, 0] = ((a[:, 0] * ss_ + sm_) - nm_) / ns_
+        np.save(out_data / f"{out_split}_aux.npy", a)
         m = pd.concat(metas, ignore_index=True)
         m.to_parquet(out_data / f"{out_split}_meta.parquet", index=False)
         write_manifest(out_data, out_man, out_split, len(idx))
@@ -141,7 +159,7 @@ def main():
         log(f"[{out_split}] written N={N:,} patients={cohort[out_split]['n_patients']:,} "
             f"prev={ {l: round(v, 4) if v is not None else None for l, v in cohort[out_split]['label_prev'].items()} }")
 
-    out_info = {"labels": args.labels, "aux": info["aux"], "aux_norm": info["aux_norm"],
+    out_info = {"labels": args.labels, "aux": info["aux"], "aux_norm": aux_norm,
                 "source_dataset": str(src), "ids_parquet": args.ids_parquet, "ids_split_col": args.ids_split_col,
                 "require_all": args.require_all, "cohort": cohort, "built": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "mhi_waveform_source": info.get("mhi_waveform_source")}
