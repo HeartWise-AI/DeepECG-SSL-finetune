@@ -106,7 +106,7 @@ def save_checkpoint(cfg: CheckpointConfig, trainer, epoch_itr, val_loss):
         # remove old checkpoints; checkpoints are sorted in descending order
         if cfg.keep_interval_updates_pattern == -1:
             checkpoints = checkpoint_paths(
-                cfg.save_dir, pattern = r"checkpoint_\d+_(\d+){}\.pt".format(suffix())
+                cfg.save_dir, pattern = r"checkpoint_\d+_(\d+){}\.pt".format(suffix)  # suffix is a str
             )
         else:
             checkpoints = checkpoint_paths(
@@ -263,7 +263,12 @@ def load_checkpoint_to_cpu(path, arg_overrides = None, load_on_all_ranks = False
         local_path = PathManager.get_local_path(path)
     
     with open(local_path, "rb") as f:
-        state = torch.load(f, map_location = torch.device("cpu"))
+        # torch>=2.6 defaults to weights_only=True, which rejects the omegaconf / numpy objects stored in
+        # fairseq checkpoints (e.g. the EchoNext v6 and WCR v1 AF checkpoints). These are internal files.
+        try:
+            state = torch.load(f, map_location = torch.device("cpu"), weights_only = False)
+        except TypeError:  # torch < 1.13 has no weights_only argument
+            state = torch.load(f, map_location = torch.device("cpu"))
 
     if "args" in state and state["args"] is not None and arg_overrides is not None:
         args = state["args"]
