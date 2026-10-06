@@ -51,6 +51,14 @@ CUDA_VISIBLE_DEVICES=[device_num] fairseq-hydra-train common.fp16=true task.data
     --config-dir examples/w2v_cmsc/config/finetuning/ecg_transformer --config-name diagnosis
 ```
 
+#### WCR v2 multi-task (EchoNext 12 labels + low LVEF + incident AF, age/sex inputs)
+See `docs/WCRV2_MULTITASK_RETRAIN_PLAN.md`. Builder: `scripts/preprocess/ecg/build_wcrv2_multitask_dataset.py`;
+config `diagnosis_wcrv2_multitask.yaml` (`model._name=ecg_transformer_aux_classifier`, `criterion._name=masked_bce`,
+NaN label = missing, manifest line `aux_path:` for `[age_z, sex]`); launcher `scripts/train_wcrv2_multitask.sh`;
+evaluation `scripts/eval_wcrv2_multitask.py`; smoke test `scripts/tests/smoke_wcrv2_multitask.py`.
+On a Python 3.12 container use the Python 3.9 venv `/volume/venvs/fss39/bin/python` with
+`PYTHONPATH=/volume/DeepECG-SSL-finetune python -m fairseq_cli.hydra_train ...` (omegaconf<2.1 does not load on 3.12).
+
 ### Inference
 ```bash
 CUDA_VISIBLE_DEVICES=[device_num] fairseq-hydra-inference task.data=[manifest_folder] \
