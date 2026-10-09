@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DeepECG-ACS 3-head — ONNX inference (self-contained: onnxruntime + numpy only).
+"""DeepACO signal model, 3-head — ONNX inference (self-contained: onnxruntime + numpy only).
 
 Outputs, from a single 12-lead ECG:
   acs_probability   - P(acute coronary syndrome; ACCO or AICO)

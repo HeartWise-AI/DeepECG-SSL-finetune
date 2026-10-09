@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Beat-level DeepECG-ACS classifier — the predictive model that guides the morph.
+"""Beat-level DeepACO classifier — the predictive model that guides the morph.
 
 Nature 2026 (s41586-026-10674-6): "To retrain the predictive model, we use the same network
 architecture and training procedure as those used for the model trained on 10-s ECGs."

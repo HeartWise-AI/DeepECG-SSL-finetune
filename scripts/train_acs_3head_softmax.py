@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared-backbone 3-head DeepECG-ACS with a SOFTMAX culprit-territory head.
+"""Shared-backbone 3-head DeepACO signal model with a SOFTMAX culprit-territory head.
 
 Changes vs scripts/train_acs_3head.py (the 4-sigmoid v6-final model):
   1. The vessel head is a 3-way SOFTMAX (cross-entropy), not 4 independent sigmoids.

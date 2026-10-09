@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DeepECG-ACS 3-head — PyTorch model definition + loader (for fine-tuning / refining).
+"""DeepACO signal model, 3-head — PyTorch model definition + loader (for fine-tuning / refining).
 
 Requires the fairseq-signals framework (DeepECG-SSL-finetune) and a WCRv2 backbone
 checkpoint (any ecg_transformer_classifier checkpoint serves as the architecture donor;

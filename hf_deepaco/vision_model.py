@@ -2,7 +2,7 @@
 """PLACEHOLDER — ECG-image (vision) model for ACS / culprit vessel.
 
 Ram's vision model reads the rendered 12-lead ECG *image* (PNG) rather than the raw signal,
-and is intended to complement the signal-based DeepECG-ACS 3-head (e.g. ensemble, or for
+and is intended to complement the DeepACO signal model (3-head) (e.g. ensemble, or for
 sites that only have ECG printouts). This stub defines the expected interface so the two can
 be swapped/combined once the checkpoint is available.
 

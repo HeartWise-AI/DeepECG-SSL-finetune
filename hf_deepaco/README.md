@@ -8,7 +8,13 @@ tags:
 library_name: onnxruntime
 ---
 
-# DeepECG-ACS — Acute Coronary Syndrome + Culprit Vessel (3-head, WCRv2)
+# DeepACO signal model — Acute Coronary Occlusion + Culprit Vessel (3-head, WCRv2)
+
+This is the **signal (waveform) model of DeepACO**, the companion of the image model released at
+[github.com/HeartWise-AI/DeepACO](https://github.com/HeartWise-AI/DeepACO). It was previously
+distributed under the name *DeepECG-ACS*; the Hugging Face repository id
+`heartwise/deepecg-acs-3head` and the `deepecg-acs` wandb project keep that historical name so
+existing download commands and run links continue to work.
 
 Detects **acute coronary syndrome (ACS)** and localizes the **culprit coronary territory**
 (LAD, RCA, LCX, Left Main) from a single 12-lead ECG. Shared WCRv2 amplitude-preserved SSL

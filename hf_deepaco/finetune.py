@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DeepECG-ACS 3-head — fine-tuning / refining template.
+"""DeepACO signal model, 3-head — fine-tuning / refining template.
 
 Continue training the 3-head model on your own ECG cohort. Provide arrays:
   X_{train,val}.npy  (N, 2500, 12) raw ADC   +   labels for ACS / ACCO / vessel.
