@@ -209,6 +209,11 @@ class BinaryCrossEntropyWithLogitsCriterion(BinaryCrossEntropyCriterion):
                         y_true = target.cpu().numpy()
                         y_score = probs.cpu().numpy()
 
+            if not self.training and self.report_auc:
+                logging_output["_y_true"] = y_true
+                logging_output["_y_score"] = y_score
+                logging_output["_y_class"] = np.array([])
+
             logging_output["correct"] = corr
             logging_output["count"] = count
             logging_output["em_correct"] = em_corr

@@ -11,16 +11,18 @@ from omegaconf import DictConfig, OmegaConf
 logger = logging.getLogger(__name__)
 
 def hydra_init(cfg_name = "config") -> None:
-    cs = ConfigStore.instance()
-    cs.store(name = cfg_name, node = Config)
+    try:
+        cs = ConfigStore.instance()
+        cs.store(name = cfg_name, node = Config)
 
-    for k in Config.__dataclass_fields__:
-        v = Config.__dataclass_fields__[k].default
-        try:
-            cs.store(name = k, node = v)
-        except BaseException:
-            logger.error(f"{k} - {v}")
-            raise
+        for k in Config.__dataclass_fields__:
+            v = Config.__dataclass_fields__[k].default
+            try:
+                cs.store(name = k, node = v)
+            except BaseException:
+                logger.warning(f"Skipping hydra config store for {k} - {v}")
+    except Exception as e:
+        logger.warning(f"hydra_init failed (OK for inference): {e}")
 
 def add_defaults(cfg: DictConfig) -> None:
     """This function adds default values that are stored in dataclasses that hydra doesn't know about """

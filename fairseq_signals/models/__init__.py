@@ -188,7 +188,11 @@ def import_models(models_dir, namespace):
             and (file.endswith(".py") or os.path.isdir(path))
         ):
             model_name = file[: file.find(".py")] if file.endswith(".py") else file
-            importlib.import_module(namespace + "." + model_name)
+            try:
+                importlib.import_module(namespace + "." + model_name)
+            except ImportError as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Skipping model {model_name}: {e}")
 
             # extra `model_parser` for sphinx
             if model_name in MODEL_REGISTRY:
