@@ -281,12 +281,15 @@ def load_checkpoint_to_cpu(path, arg_overrides = None, load_on_all_ranks = False
         # omegaconf version that supports object flags, or when we migrate all existing models
         from omegaconf import _utils
 
-        old_primitive = _utils.is_primitive_type
-        _utils.is_primitive_type = lambda _: True
-
-        state["cfg"] = OmegaConf.create(state["cfg"])
-
-        _utils.is_primitive_type = old_primitive
+        if hasattr(_utils, 'is_primitive_type'):
+            old_primitive = _utils.is_primitive_type
+            _utils.is_primitive_type = lambda _: True
+            state["cfg"] = OmegaConf.create(state["cfg"])
+            _utils.is_primitive_type = old_primitive
+        else:
+            # omegaconf >= 2.1 removed is_primitive_type; legacy configs may hold argparse.Namespace values,
+            # which that version accepts through the allow_objects flag
+            state["cfg"] = OmegaConf.create(state["cfg"], flags={"allow_objects": True})
         OmegaConf.set_struct(state["cfg"], True)
         if arg_overrides is not None:
             overwrite_args_by_name(state["cfg"], arg_overrides)

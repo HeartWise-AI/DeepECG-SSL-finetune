@@ -132,6 +132,8 @@ class BinaryCrossEntropyWithLogitsCriterion(BinaryCrossEntropyCriterion):
         with torch.no_grad():
             probs = torch.sigmoid(logits)
             outputs = probs > self.threshold
+            # AUC inputs for this batch; stay None for an empty batch so no AUC fields are logged
+            y_true, y_score, y_class = None, None, np.array([])
 
             if probs.numel() == 0:
                 corr = 0
@@ -208,6 +210,15 @@ class BinaryCrossEntropyWithLogitsCriterion(BinaryCrossEntropyCriterion):
                     if not self.training and self.report_auc:
                         y_true = target.cpu().numpy()
                         y_score = probs.cpu().numpy()
+
+            if (
+                not self.training and self.report_auc
+                and isinstance(y_true, np.ndarray) and y_true.size > 0
+            ):
+                logging_output["_y_true"] = y_true
+                logging_output["_y_score"] = y_score
+                # class ids are only collected for valid_classes + macro averaging; empty otherwise
+                logging_output["_y_class"] = y_class if isinstance(y_class, np.ndarray) else np.array([])
 
             logging_output["correct"] = corr
             logging_output["count"] = count
@@ -338,7 +349,7 @@ class BinaryCrossEntropyWithLogitsCriterion(BinaryCrossEntropyCriterion):
             "loss", loss_sum / (sample_size or 1) / math.log(2), sample_size, round = 3
         )
 
-        if "_y_true" in logging_outputs[0] and "_y_score" in logging_outputs[0]:
+        if any("_y_true" in log and "_y_score" in log for log in logging_outputs):
             y_true = np.concatenate([log["_y_true"] for log in logging_outputs if "_y_true" in log])
             y_score = np.concatenate([log["_y_score"] for log in logging_outputs if "_y_score" in log])
             y_class = np.concatenate([log["_y_class"] for log in logging_outputs if "_y_class" in log])

@@ -3,24 +3,29 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import dataclasses
 import logging
 from hydra.core.config_store import ConfigStore
 from fairseq_signals.dataclass.configs import Config
 from omegaconf import DictConfig, OmegaConf
 
 logger = logging.getLogger(__name__)
+MISSING_FIELD = dataclasses.MISSING
 
 def hydra_init(cfg_name = "config") -> None:
-    cs = ConfigStore.instance()
-    cs.store(name = cfg_name, node = Config)
+    try:
+        cs = ConfigStore.instance()
+        cs.store(name = cfg_name, node = Config)
 
-    for k in Config.__dataclass_fields__:
-        v = Config.__dataclass_fields__[k].default
-        try:
-            cs.store(name = k, node = v)
-        except BaseException:
-            logger.error(f"{k} - {v}")
-            raise
+        for k, f in Config.__dataclass_fields__.items():
+            # fields declared with default_factory keep MISSING in .default; register the instance instead
+            v = f.default_factory() if f.default_factory is not MISSING_FIELD else f.default
+            try:
+                cs.store(name = k, node = v)
+            except BaseException:
+                logger.warning(f"Skipping hydra config store for {k} - {v}")
+    except Exception as e:
+        logger.warning(f"hydra_init failed (OK for inference): {e}")
 
 def add_defaults(cfg: DictConfig) -> None:
     """This function adds default values that are stored in dataclasses that hydra doesn't know about """
