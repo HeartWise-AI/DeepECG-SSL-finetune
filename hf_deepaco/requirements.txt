@@ -1,0 +1,4 @@
+onnxruntime>=1.16
+numpy
+huggingface_hub
+torch>=2.0

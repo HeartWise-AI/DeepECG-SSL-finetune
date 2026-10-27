@@ -127,6 +127,44 @@ y = run_session(session, x)
 print(y)
 ```
 
+### Exporting the WCR v2 incident-AF auxiliary classifier
+
+The incident-AF model uses ECG, age, and sex inputs, so it must be exported with
+the dedicated auxiliary-classifier exporter instead of the single-input command
+above. From a configured repository environment, install the export/runtime
+dependencies and run:
+
+```shell script
+$ pip install onnx==1.17.0 onnxruntime==1.23.2 numpy==1.26.4
+$ MODEL_DIR=/path/to/DeepECG_SSL_WCRv2_AFib_v2
+$ PYTHONPATH=$PWD python scripts/export_wcrv2_aux_onnx.py \
+    --model-dir "$MODEL_DIR"
+```
+
+By default this reads `checkpoint_best.pt` and `labels.json`, then writes:
+
+- `deepecg-ssl-v2-afib-2y-5y.onnx`
+- `deepecg-ssl-v2-afib-2y-5y.onnx.json`, containing the artifact checksum,
+  input/output contract, label order, and parity results
+
+The exported ONNX graph uses opset 17 and has a dynamic batch dimension with
+fixed waveform dimensions:
+
+| Name | Type | Shape | Meaning |
+|------|------|-------|---------|
+| `ecg_12lead_mv` | float32 | `(batch, 12, 2500)` | ECG in millivolts |
+| `age_years` | float32 | `(batch,)` | Raw age in years; NaN if unknown |
+| `sex_male` | float32 | `(batch,)` | 1=male, 0=female; NaN if unknown |
+| `logits` | float32 | `(batch, 2)` | Raw logits in `[incident_af_2y, incident_af_5y]` order |
+
+Age normalization is embedded in the graph from `labels.json`. The exporter
+checks the graph with ONNX, then compares PyTorch and ONNX Runtime results for
+single- and multi-record batches, including missing demographics. It exits with
+an error when parity exceeds the configured `--atol` or `--rtol` (both default
+to `1e-4`). Apply sigmoid downstream to convert the output logits to
+probabilities. Model weights and generated ONNX artifacts must remain outside
+Git.
+
 
 ## Signal Normalization
 
@@ -190,6 +228,16 @@ This computes the median lead-I power across a random sample and derives the sca
 **Advantage:** All patients retain their natural amplitude variation after scaling, and signals are in standard physical units (mV) across all sources. This enables the model to learn voltage-dependent diagnostic criteria for conditions like LVH, LAE/RAE, RVH, and BAE, where absolute voltage measurements are part of the clinical criteria.
 
 The full amplitude-preserved preprocessing and training pipeline is available in `scripts/preprocess/ecg/run_ssl_amp_preserved.sh`.
+
+## DeepACO signal model (acute coronary occlusion)
+
+The signal model of [DeepACO](https://github.com/HeartWise-AI/DeepACO) is fine-tuned from the
+amplitude-preserved WCRv2 backbone with this repository. Its inference and fine-tuning package is
+in `hf_deepaco/`, the cohort and training scripts are `scripts/preprocess/build_acs_v6_*.py`,
+`scripts/train_acs_3head.py` and `scripts/train_acs_3head_softmax.py`, and the beat-level
+explainability stack is in `scripts/beatmodel/` (start with its `HANDOVER.md`). The model was
+previously called DeepECG-ACS; that name survives only in the Hugging Face repository id
+`heartwise/deepecg-acs-3head` and the wandb project name.
 
 ## Example of manifest files
 `train.tsv` for a classification task with `num_labels=2`. Note that the `#` used in the file are only for description. `.tsv` does not support comments. 
