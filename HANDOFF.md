@@ -18,6 +18,10 @@ All of this work is merged on `main`. No open branches or running jobs belong to
 
 ## Delivered models (NAS, safe)
 
+W&B (entity `mhi_ai`): EchoNext-12 `wcrv2-echonext12/3nw75t2x`, AF v2 `wcrv2-afib/nj4rqc3b`, AF v1
+`wcrv2-afib/37a7l7qf`, waveform-only control `wcrv2-echonext12/70xueqhr`. They were logged offline and
+synced on 2026-11-15.
+
 | Model | Folder under `/media/data1/models/DeepECG-SSL/` | Test AUROC | Notion card |
 |---|---|---|---|
 | EchoNext-12 (12 labels, age + sex) | `DeepECG_SSL_WCRv2_EchoNext12_v1/` | SHD composite 0.852 EchoNext / 0.763 MHI (v6: 0.829 / 0.726); LVEF ≤ 45 0.918 | [link](https://app.notion.com/p/3f10855e87b6810bb16ee25dc90ea3eb) |
@@ -51,8 +55,11 @@ Each folder holds `checkpoint_best.pt`, `labels.json` (label order, age mean/std
 - **The AF cohort follows the EHJ 2024 definition:** sinus ECGs, no prevalent AF, and no minimum
   follow-up for negatives (660,764 MHI ECGs, 5 y prevalence 10 %). The Notion iAF5 cohort (96K) is a
   subset of it, and its rows are scored separately in the eval.
-- **Always pass age and sex at inference.** Leaving them unknown shifts probabilities by about 0.009
-  on average.
+- **Age and sex add little.** EchoNext-12 vs an identically trained waveform-only model
+  (`ablation_waveform_only/` in its NAS folder): MHI SHD composite 0.763 vs 0.758, +0.005 (95 % CI
+  +0.003 to +0.008, patient bootstrap); no single label moves meaningfully. The AF model gains nothing
+  from them (withheld at inference: Δ −0.000). Its +0.014 over WCR v1 (CI +0.009 to +0.019) comes from
+  the waveform. Still pass age and sex when known; `scripts/ablate_aux_inputs.py` reproduces this.
 
 ## Traps
 
