@@ -3,7 +3,7 @@
 This handoff is for whoever picks up the DeepECG-SSL WCR v2 fine-tunes next. Its last update was
 2026-11-15. The full record is
 [`docs/WCRV2_MULTITASK_RETRAIN_PLAN.md`](docs/WCRV2_MULTITASK_RETRAIN_PLAN.md), which covers data
-building, results, reproduction and inference. This file lists what is finished, what is still open,
+building, results, reproduction and inference. This file (last update 2026-11-16) lists what is finished, what is still open,
 and the traps that cost time.
 
 ## State
@@ -32,12 +32,16 @@ Each folder holds `checkpoint_best.pt`, `labels.json` (label order, age mean/std
 
 ## Open items, roughly in priority order
 
-1. **Operating thresholds.** The thresholds in `eval/` were picked on the **test** set and are for
-   reference only. Before either model is deployed, pick its thresholds on the validation set.
-2. **Deployment of the AF model.** It needs a DeepECG Docker / PACS-AI entry, and model-policy
-   exposure of the 5-year head so it replaces `wcr_afib_5y` (WCR v1) for the collaborating
-   cardiologist. Use the `model-publishing` skill, then `pacs-ai-model`.
-3. **Hugging Face.** Add a private mirror next to `heartwise/DeepECG-EchoNext`.
+1. **AF model on deepECG.ai (2026-11-16).** The platform already runs this exact AF v2 ONNX as
+   `deepecg_afib` (deepECG-AI #716/#718, pilot users only through the access policy). Its 0.5
+   placeholder cut-off is replaced in deepECG-AI #824 (draft, Jacques reviewing) by validation
+   specificity-90 % thresholds chosen by Robert: 5 y 0.1774 (test sens 0.40, spec 0.90, PPV 0.31),
+   2 y 0.1247. Analysis: `eval/thresholds_2026-11-16/` in the AF NAS folder. Next: merge #824,
+   redeploy model-diagnosis-api, enable the policy for the pilot cardiologists.
+2. **Hugging Face.** Done for AF: private `heartwise/WCRv2_AFIB_2Y_5Y_AgeSex` (ONNX, config with
+   thresholds, `inference.py`, Dockerfile; Docker build untested). EchoNext-12 has no HF mirror yet,
+   and its thresholds in `eval/` are still test-set picks.
+3. **EchoNext-12 operating thresholds.** Pick them on the validation set before any deployment.
 4. **ONNX for EchoNext-12.** Run `scripts/export_wcrv2_aux_onnx.py` on the EchoNext-12 folder, the
    same way the AF model was exported.
 5. **Low-EF model.** The 16-head multi-task run `data/runs/wcrv2_mt_v1` (1 epoch, val macro AUROC
